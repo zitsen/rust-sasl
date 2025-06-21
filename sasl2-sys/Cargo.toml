@@ -34,6 +34,7 @@ pkg-config = { version = "0.3.17", optional = true }
 default = ["pkg-config"]
 gssapi-vendored = ["krb5-src", "vendored"]
 openssl-vendored = ["openssl-sys/vendored"]
+keyutils-vendored = []
 plain = ["vendored"]
 scram = ["openssl-sys", "vendored"]
 vendored = []

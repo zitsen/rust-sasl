@@ -166,6 +166,39 @@ fn build_sasl(metadata: &Metadata) {
     println!("cargo:rustc-link-lib=static={}", LIBRARY_NAME);
     println!("cargo:root={}", install_dir.display());
 
+    #[cfg(all(feature = "keyutils-vendored", target_os = "linux"))]
+    {
+        // NOTE(zitsen): link against the vendored keyutils library to pass gssapi in centos7.
+        let keyutils_src_dir = metadata.out_dir.join("keyutils");
+        if !keyutils_src_dir.exists() {
+            // We're not allowed to build in-tree directly, as ~/.cargo/registry is
+            // globally shared, but sasl doesn't seem to support out-of-tree builds.
+            // Work around the issue by copying sasl into OUT_DIR, and building
+            // inside of *that* tree.
+            cmd!("cp", "-R", "keyutils", &keyutils_src_dir)
+                .run()
+                .expect("failed making copy of keyutils tree");
+        }
+        let tool = cc::Build::new().get_compiler();
+        let mut cflags = tool.cflags_env();
+        cflags.push(" -fPIC");
+
+        cmd!(make, "libkeyutils.a")
+            .dir(&keyutils_src_dir)
+            .env("MAKEFLAGS", &make_flags)
+            .env("CC", tool.path())
+            .env("CFLAGS", cflags)
+            .run()
+            .expect("make failed for keyutils");
+        cmd!(
+            "cp",
+            keyutils_src_dir.join("libkeyutils.a"),
+            install_dir.join("lib").join("libkeyutils.a")
+        )
+        .run()
+        .expect("failed copying libkeyutils.a to install dir");
+        println!("cargo:rustc-link-lib=static=keyutils");
+    }
     #[cfg(feature = "gssapi-vendored")]
     {
         // NOTE(benesch): linking gssapi_krb5 and its dependencies should one
